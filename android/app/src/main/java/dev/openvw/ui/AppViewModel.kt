@@ -263,6 +263,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val arr = ui.optJSONArray("vehicle")
     val v = if (arr != null && arr.length() > 0) arr.optJSONObject(0) else null
     if (v != null) {
+      fun str(k: String) = v.optString(k).takeUnless { it == "null" }.orEmpty().trim()
       val vin = v.optString("vinNo").ifEmpty { v.optString("vin") }
       session.vin = vin
       session.telePhone = Crypto.decOrSelf(v.optString("telematicsMobileNo")).ifEmpty { "+91" + session.mobile }
@@ -275,6 +276,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         dongleImei = Repo.vehicle.dongleImei,
         dongleFirmware = Repo.vehicle.dongleFirmware,
         status = Store.vehicle.status,
+        year = str("telematics_Year").ifEmpty { str("modelyear") },
+        fuelType = str("telematics_FuelType").ifEmpty { str("fuelUsed") },
+        modelCode = str("modelcode"),
+        regNo = Crypto.decOrSelf(str("telematics_RegistrationNumber").ifEmpty { str("registrationNo") }),
       )
     }
     if (prof != null) {
@@ -342,11 +347,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       distanceWithMil = gi("DistanceWithMIL") ?: old.distanceWithMil,
       distanceSinceDtc = gi("DistanceSinceDTCClear") ?: old.distanceSinceDtc,
       engineOn = tj.optString("engine").takeIf { it.isNotEmpty() }?.let { it == "ON" } ?: old.engineOn,
+      // when the dongle reported this; a push without a timestamp is fresh by definition
+      updatedAt = tj.optLong("timestamp").takeIf { it > 0 } ?: t.optLong("timestamp").takeIf { it > 0 }
+        ?: if (live) System.currentTimeMillis() / 1000 else old.updatedAt,
     )
     Store.vehicle = Store.vehicle.copy(status = if ((Store.telemetry.speedKmh ?: 0) > 0 || Store.telemetry.engineOn) "Driving" else "Parked")
     // dongle health
     t.optJSONArray("devices")?.optJSONObject(0)?.let { d ->
-      Store.dongle = Dongle(d.optInt("netSignal"), d.optString("status"), d.optJSONObject("firmware")?.optString("version") ?: "")
+      val prev = Store.dongle
+      Store.dongle = Dongle(
+        d.optInt("netSignal", prev.signal),
+        d.optString("status").ifEmpty { prev.status },
+        d.optJSONObject("firmware")?.optString("version")?.takeIf { it.isNotEmpty() } ?: prev.firmware,
+        d.optString("deviceId").ifEmpty { d.optString("id") }.ifEmpty { t.optString("deviceId") }.ifEmpty { prev.imei },
+      )
     }
     // pushes carry the live position: follow the car on the maps
     if (live) t.optJSONObject("location")?.let { l ->

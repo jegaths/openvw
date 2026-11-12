@@ -36,11 +36,15 @@ object Store {
     get() = listOf(
       Spec("Model", vehicle.model),
       Spec("Variant", vehicle.variant),
+      Spec("Model year", vehicle.year.ifEmpty { "—" }),
       Spec("Colour", vehicle.colour),
-      Spec("Fuel", "Petrol"),
+      Spec("Fuel", vehicle.fuelType.ifEmpty { "Petrol" }),
+      Spec("Registration", vehicle.regNo.ifEmpty { null }?.let { Mask.reg(it) } ?: "—", mono = true),
       Spec("Engine type", vehicle.engineType, mono = true),
-      Spec("Dongle firmware", vehicle.dongleFirmware, mono = true),
-      Spec("Dongle IMEI", Mask.imei(vehicle.dongleImei), mono = true),
+      Spec("Model code", vehicle.modelCode.ifEmpty { "—" }, mono = true),
+      // real values from the dongle once the car record loads (not the sample placeholders)
+      Spec("Dongle firmware", dongle.firmware.ifEmpty { "—" }, mono = true),
+      Spec("Dongle IMEI", dongle.imei.ifEmpty { null }?.let { Mask.imei(it) } ?: "—", mono = true),
     )
 }
 

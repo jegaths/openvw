@@ -51,6 +51,9 @@ import dev.openvw.R
 import dev.openvw.data.Mask
 import dev.openvw.data.CarLook
 import dev.openvw.data.Store
+import dev.openvw.data.Freshness
+import dev.openvw.theme.AmberDark
+import dev.openvw.theme.AmberSoftBg
 import dev.openvw.theme.Accent
 import dev.openvw.theme.Border
 import dev.openvw.theme.Card
@@ -108,6 +111,10 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
         ) { Text(Mask.initials(Store.owner.initials), style = TextStyle(color = Card, fontSize = 14.sp, fontWeight = FontWeight.Bold)) }
       }
     }
+  }
+  val stale: @Composable () -> Unit = {
+    // the server keeps serving the dongle's last values; say so when they're old
+    if (Store.live && Freshness.isStale(tele.updatedAt)) StaleBanner(tele.updatedAt, Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp))
   }
   val hero: @Composable () -> Unit = {
     // hero: name + status, car on the left, fuel / battery / last trip on the right
@@ -234,6 +241,13 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
           Spacer(Modifier.width(6.dp))
           Text("Live", style = TextStyle(color = Card, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
         }
+      } else if (Store.live && tele.updatedAt > 0) {
+        val old = Freshness.isStale(tele.updatedAt)
+        Text(
+          Freshness.ago(tele.updatedAt).replaceFirstChar { it.uppercase() },
+          style = TextStyle(color = if (old) AmberDark else Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+          modifier = Modifier.padding(end = 10.dp),
+        )
       }
       Row(
         Modifier.height(36.dp).clip(RoundedCornerShape(99.dp)).background(Card).border(1.dp, dev.openvw.theme.Hairline, RoundedCornerShape(99.dp))
@@ -330,11 +344,11 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
 
   if (!wide) {
     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-      header(); hero(); odometer(); cluster(); recent(); parked()
+      header(); stale(); hero(); odometer(); cluster(); recent(); parked()
     }
   } else {
     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-      header()
+      header(); stale()
       Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) { hero(); odometer(); parked() }
         Column(Modifier.weight(1f)) { cluster(); recent() }
@@ -489,5 +503,22 @@ fun TripRoute(start: String, end: String, fromTitle: String, fromSub: String, to
       Text(toTitle, maxLines = 1, style = TextStyle(color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold))
       Text(toSub, maxLines = 1, style = TextStyle(color = Muted, fontSize = 12.sp))
     }
+  }
+}
+
+/** Shown when the dongle hasn't reported for a while: every reading on screen is from that time. */
+@Composable
+private fun StaleBanner(epoch: Long, modifier: Modifier = Modifier) {
+  val whenTxt = remember(epoch) { java.text.SimpleDateFormat("d MMM, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(epoch * 1000)) }
+  Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(AmberSoftBg).padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Text(
+      "No data from your car since $whenTxt (${Freshness.ago(epoch)})",
+      style = TextStyle(color = AmberDark, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+      "Fuel, odometer and the cluster show the last values the dongle sent. Check it's plugged into the OBD port and your Connect Plus subscription is active.",
+      style = TextStyle(color = Ink, fontSize = 12.sp, lineHeight = 17.sp),
+    )
   }
 }
