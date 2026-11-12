@@ -15,10 +15,32 @@ data class Telemetry(
   val distanceWithMil: Int? = 0,       // km driven with MIL on
   val distanceSinceDtc: Int? = 6145,   // km since last diagnostic reset
   val engineOn: Boolean = false,
+  val updatedAt: Long = 0,             // when the dongle sent these readings (epoch s); 0 = unknown
 )
 
+/** How old the car's last report is — the server keeps serving the last values when the dongle goes quiet. */
+object Freshness {
+  const val STALE_S = 6 * 3600L  // parked cars still heartbeat; 6 h of silence means the dongle isn't reporting
+
+  fun ageS(epoch: Long, now: Long = System.currentTimeMillis() / 1000): Long = if (epoch <= 0) -1 else (now - epoch).coerceAtLeast(0)
+
+  fun isStale(epoch: Long, now: Long = System.currentTimeMillis() / 1000): Boolean = ageS(epoch, now) > STALE_S
+
+  /** "just now", "12 min ago", "5 h ago", "54 days ago". */
+  fun ago(epoch: Long, now: Long = System.currentTimeMillis() / 1000): String {
+    val a = ageS(epoch, now)
+    return when {
+      a < 0 -> ""
+      a < 90 -> "just now"
+      a < 3600 -> "${a / 60} min ago"
+      a < 48 * 3600 -> "${a / 3600} h ago"
+      else -> "${a / 86400} days ago"
+    }
+  }
+}
+
 /** OBD dongle health. */
-data class Dongle(val signal: Int = 0, val status: String = "", val firmware: String = "")
+data class Dongle(val signal: Int = 0, val status: String = "", val firmware: String = "", val imei: String = "")
 
 /** Driving-behaviour summary computed from per-trip telematics. */
 data class DriveStats(
@@ -124,6 +146,10 @@ data class VehicleInfo(
   val dongleImei: String = "860000000000000",
   val dongleFirmware: String = "1.0.0.27",
   val status: String = "Parked",
+  val year: String = "",
+  val fuelType: String = "",
+  val modelCode: String = "",
+  val regNo: String = "",
 )
 
 data class Owner(
